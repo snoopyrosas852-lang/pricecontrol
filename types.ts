@@ -7,6 +7,7 @@ export interface Rule {
   thresholdUp?: string;
   thresholdDown?: string;
   formula?: string; // Replaced basePrice with formula
+  isSystem?: boolean; // Identifies rules that cannot be edited or deleted
 }
 
 export enum SidebarItem {

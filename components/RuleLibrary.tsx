@@ -1,7 +1,20 @@
 
 import React, { useState, useMemo } from 'react';
-import { Search, ChevronLeft, ChevronRight, X, ArrowUp, ArrowDown, Plus, Calculator, AlertCircle, Trash2, Edit3, RotateCcw } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, X, ArrowUp, ArrowDown, Plus, Calculator, AlertCircle, Trash2, Edit3, RotateCcw, Lock } from 'lucide-react';
 import { Rule } from '../types';
+
+const PRICE_VARIABLES = ['项目外链价', '固定清单价', '平台外链价', '咸亨官网价', '项目协议价', '调拨价'];
+const OPERATORS = ['+', '-', '*', '/', '(', ')', '>', '<', '>=', '<='];
+const COMPARISON_OPERATORS = ['>', '<', '>=', '<='];
+
+// 规则类型与变量的强相关映射
+const TYPE_TO_VARIABLES: Record<string, string[]> = {
+  '固定价比较检查': ['固定清单价', '项目协议价'],
+  '项目外链比较检查': ['项目外链价', '项目协议价'],
+  '外部链接比较检查': ['平台外链价', '项目协议价'],
+  '咸亨官网价比较检查': ['咸亨官网价', '项目协议价'],
+  '通用检查': PRICE_VARIABLES,
+};
 
 const INITIAL_RULES: Rule[] = [
   { 
@@ -9,28 +22,32 @@ const INITIAL_RULES: Rule[] = [
     name: '固定价', 
     type: '固定价比较检查', 
     createdAt: '2026-01-19', 
-    formula: '[项目协议价] > [固定清单价]' 
+    formula: '[项目协议价] > [固定清单价]',
+    isSystem: true
   },
   { 
     id: '2', 
     name: '项目外链', 
     type: '项目外链比较检查', 
     createdAt: '2025-12-05', 
-    formula: '[项目外链价] < [项目协议价]' 
+    formula: '[项目外链价] < [项目协议价]',
+    isSystem: true
   },
   { 
     id: '3', 
     name: '外链', 
     type: '外部链接比较检查', 
     createdAt: '2025-12-05', 
-    formula: '[平台外链价] < [项目协议价]' 
+    formula: '[平台外链价] < [项目协议价]',
+    isSystem: true
   },
   { 
     id: '4', 
     name: '官网价', 
     type: '咸亨官网价比较检查', 
     createdAt: '2025-12-05', 
-    formula: '[咸亨官网价] < [项目协议价]' 
+    formula: '[咸亨官网价] < [项目协议价]',
+    isSystem: true
   },
   { 
     id: '5', 
@@ -39,13 +56,10 @@ const INITIAL_RULES: Rule[] = [
     createdAt: '2025-11-20', 
     formula: '[项目协议价] / [固定清单价]',
     thresholdUp: '15%',
-    thresholdDown: '5%'
+    thresholdDown: '5%',
+    isSystem: false
   },
 ];
-
-const PRICE_VARIABLES = ['项目外链价', '固定清单价', '平台外链价', '咸亨官网价', '项目协议价'];
-const OPERATORS = ['+', '-', '*', '/', '(', ')', '>', '<', '>=', '<='];
-const COMPARISON_OPERATORS = ['>', '<', '>=', '<='];
 
 const RuleLibrary: React.FC = () => {
   const [rules, setRules] = useState<Rule[]>(INITIAL_RULES);
@@ -71,14 +85,28 @@ const RuleLibrary: React.FC = () => {
     return COMPARISON_OPERATORS.some(op => formula.includes(op));
   }, [formData.formula]);
 
-  const handleDelete = (id: string) => {
+  // 根据当前选择的类型获取可用变量
+  const availableVariables = useMemo(() => {
+    if (!formData.type) return [];
+    return TYPE_TO_VARIABLES[formData.type] || PRICE_VARIABLES;
+  }, [formData.type]);
+
+  const handleDelete = (rule: Rule) => {
+    if (rule.isSystem) {
+      alert('系统内置核心规则不可删除');
+      return;
+    }
     if (window.confirm('确定要删除这条规则吗？')) {
-      setRules(prev => prev.filter(r => r.id !== id));
+      setRules(prev => prev.filter(r => r.id !== rule.id));
     }
   };
 
   const handleOpenModal = (rule?: Rule) => {
     if (rule) {
+      if (rule.isSystem) {
+        // System rules cannot be opened for editing
+        return;
+      }
       setEditingRule(rule);
       setFormData(rule);
     } else {
@@ -113,6 +141,7 @@ const RuleLibrary: React.FC = () => {
         thresholdUp: finalData.thresholdUp,
         thresholdDown: finalData.thresholdDown,
         formula: finalData.formula || '',
+        isSystem: false,
       };
       setRules(prev => [newRule, ...prev]);
     }
@@ -162,11 +191,9 @@ const RuleLibrary: React.FC = () => {
               onChange={(e) => setTypeSearch(e.target.value)}
             >
               <option value="">全部类型</option>
-              <option value="固定价比较检查">固定价比较检查</option>
-              <option value="项目外链比较检查">项目外链比较检查</option>
-              <option value="外部链接比较检查">外部链接比较检查</option>
-              <option value="咸亨官网价比较检查">咸亨官网价比较检查</option>
-              <option value="通用检查">通用检查</option>
+              {Object.keys(TYPE_TO_VARIABLES).map(type => (
+                <option key={type} value={type}>{type}</option>
+              ))}
             </select>
           </div>
           <div className="flex space-x-3">
@@ -203,9 +230,14 @@ const RuleLibrary: React.FC = () => {
                 filteredRules.map((rule) => {
                   const ruleHasComparison = COMPARISON_OPERATORS.some(op => rule.formula?.includes(op));
                   return (
-                    <tr key={rule.id} className="hover:bg-blue-50/30 transition-colors group">
+                    <tr key={rule.id} className={`transition-colors group ${rule.isSystem ? 'bg-gray-50/30' : 'hover:bg-blue-50/30'}`}>
                       <td className="px-6 py-4">
-                        <span className="font-medium text-gray-900">{rule.name}</span>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-medium text-gray-900">{rule.name}</span>
+                          {rule.isSystem && (
+                            <span className="bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">系统</span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
@@ -214,8 +246,8 @@ const RuleLibrary: React.FC = () => {
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center space-x-2">
-                          <Calculator size={14} className="text-blue-500" />
-                          <code className="text-[12px] bg-blue-50 text-blue-700 px-2 py-1 rounded font-mono border border-blue-100">
+                          <Calculator size={14} className={`${rule.isSystem ? 'text-gray-400' : 'text-blue-500'}`} />
+                          <code className={`text-[12px] px-2 py-1 rounded font-mono border ${rule.isSystem ? 'bg-gray-100 text-gray-500 border-gray-200' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
                             {rule.formula || '--'}
                           </code>
                         </div>
@@ -245,20 +277,29 @@ const RuleLibrary: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button 
-                            onClick={() => handleOpenModal(rule)}
-                            className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                            title="编辑"
-                          >
-                            <Edit3 size={16} />
-                          </button>
-                          <button 
-                            onClick={() => handleDelete(rule.id)}
-                            className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-md transition-colors"
-                            title="删除"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {rule.isSystem ? (
+                            <div className="p-1.5 text-gray-400 flex items-center" title="系统核心规则，不可修改">
+                              <Lock size={16} className="opacity-60" />
+                              <span className="text-[10px] ml-1 font-bold">锁定</span>
+                            </div>
+                          ) : (
+                            <>
+                              <button 
+                                onClick={() => handleOpenModal(rule)}
+                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
+                                title="编辑"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleDelete(rule)}
+                                className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-md transition-colors"
+                                title="删除"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -298,11 +339,11 @@ const RuleLibrary: React.FC = () => {
       <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex items-start space-x-3">
         <AlertCircle size={18} className="text-blue-600 shrink-0 mt-0.5" />
         <div className="text-xs text-blue-800 leading-relaxed">
-          <p className="font-bold mb-1">系统提示：</p>
+          <p className="font-bold mb-1">规则配置说明：</p>
           <ul className="list-disc list-inside space-y-1">
-            <li>计算公式中使用 <code className="bg-blue-100 px-1 rounded font-bold">{">, <, >=, <="}</code> 等符号时，系统将自动切换为<strong>直接判定模式</strong>。</li>
-            <li>直接判定模式下，满足逻辑即为通过，反之则告警，不再支持设置浮动阈值。</li>
-            <li>公式编辑支持点击下方变量按钮快速插入。</li>
+            <li><strong>系统内置规则</strong>：标有“系统”字样的规则（固定价、项目外链等）为平台核心逻辑，<strong>不支持任何修改或删除</strong>操作。</li>
+            <li><strong>相关性限制</strong>：公式可用变量将根据您选择的“规则类型”自动过滤，以确保逻辑准确性。</li>
+            <li><strong>直接判定模式</strong>：计算公式中使用 <code className="bg-blue-100 px-1 rounded font-bold">{">, <, >=, <="}</code> 时，将不再支持浮动阈值设置。</li>
           </ul>
         </div>
       </div>
@@ -339,22 +380,27 @@ const RuleLibrary: React.FC = () => {
                     required
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition-all"
                   >
                     <option value="">请选择类型</option>
-                    <option value="固定价比较检查">固定价比较检查</option>
-                    <option value="项目外链比较检查">项目外链比较检查</option>
-                    <option value="外部链接比较检查">外部链接比较检查</option>
-                    <option value="咸亨官网价比较检查">咸亨官网价比较检查</option>
-                    <option value="通用检查">通用检查</option>
+                    {Object.keys(TYPE_TO_VARIABLES).map(type => (
+                      <option key={type} value={type}>{type}</option>
+                    ))}
                   </select>
                 </div>
               </div>
               
               <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-100">
-                <label className="text-xs font-bold text-gray-700 uppercase flex items-center">
-                  <Calculator size={14} className="mr-1.5 text-blue-500" />
-                  公式配置 (基准价格)
+                <label className="text-xs font-bold text-gray-700 uppercase flex items-center justify-between">
+                  <span className="flex items-center">
+                    <Calculator size={14} className="mr-1.5 text-blue-500" />
+                    公式配置 (基准价格)
+                  </span>
+                  {!formData.type && (
+                    <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 flex items-center animate-pulse">
+                      <AlertCircle size={10} className="mr-1" /> 请先选择规则类型
+                    </span>
+                  )}
                 </label>
                 <textarea 
                   required
@@ -366,18 +412,22 @@ const RuleLibrary: React.FC = () => {
                 />
                 
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">常用变量</p>
-                  <div className="flex flex-wrap gap-2">
-                    {PRICE_VARIABLES.map(v => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => addToFormula(`[${v}]`)}
-                        className="px-2 py-1 bg-white hover:bg-blue-600 hover:text-white text-blue-600 rounded-md border border-blue-200 text-[11px] font-medium transition-all"
-                      >
-                        {v}
-                      </button>
-                    ))}
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">可用价格变量</p>
+                  <div className="flex flex-wrap gap-2 min-h-[32px]">
+                    {availableVariables.length > 0 ? (
+                      availableVariables.map(v => (
+                        <button
+                          key={v}
+                          type="button"
+                          onClick={() => addToFormula(`[${v}]`)}
+                          className="px-2.5 py-1 bg-white hover:bg-blue-600 hover:text-white text-blue-600 rounded-md border border-blue-200 text-[11px] font-medium transition-all animate-in fade-in slide-in-from-left-1"
+                        >
+                          {v}
+                        </button>
+                      ))
+                    ) : (
+                      <span className="text-[11px] text-gray-400 italic py-1">选择类型后显示对应变量</span>
+                    )}
                   </div>
                 </div>
                 <div className="space-y-2">
