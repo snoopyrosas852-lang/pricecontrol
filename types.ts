@@ -10,8 +10,13 @@ export interface Rule {
   isSystem?: boolean; // Identifies rules that cannot be edited or deleted
 }
 
+export interface Customer {
+  id: string;
+  projectName: string;
+}
+
 export enum SidebarItem {
-  BudgetCenter = '预算中心',
+  WarningCenter = '预警中心',
   PriceDataPool = '价格数据池',
   RuleLibrary = '规则库',
   CustomerManagement = '客户管理'

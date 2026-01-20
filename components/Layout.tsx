@@ -13,7 +13,8 @@ import {
   Settings,
   Database,
   Users,
-  ShieldCheck
+  ShieldCheck,
+  AlertCircle
 } from 'lucide-react';
 import { SidebarItem } from '../types';
 
@@ -26,7 +27,7 @@ interface LayoutProps {
 const Layout: React.FC<LayoutProps> = ({ children, activeSidebar, setActiveSidebar }) => {
   const getIcon = (item: SidebarItem) => {
     switch (item) {
-      case SidebarItem.BudgetCenter: return <Settings size={14} />;
+      case SidebarItem.WarningCenter: return <AlertCircle size={14} />;
       case SidebarItem.PriceDataPool: return <Database size={14} />;
       case SidebarItem.RuleLibrary: return <ShieldCheck size={14} />;
       case SidebarItem.CustomerManagement: return <Users size={14} />;
@@ -101,7 +102,7 @@ const Layout: React.FC<LayoutProps> = ({ children, activeSidebar, setActiveSideb
           </div>
           <nav className="flex-1 px-3 space-y-1">
             {[
-              SidebarItem.BudgetCenter,
+              SidebarItem.WarningCenter,
               SidebarItem.PriceDataPool,
               SidebarItem.RuleLibrary,
               SidebarItem.CustomerManagement

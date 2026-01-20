@@ -7,7 +7,6 @@ const PRICE_VARIABLES = ['项目外链价', '固定清单价', '平台外链价'
 const OPERATORS = ['+', '-', '*', '/', '(', ')', '>', '<', '>=', '<='];
 const COMPARISON_OPERATORS = ['>', '<', '>=', '<='];
 
-// 规则类型与变量的强相关映射
 const TYPE_TO_VARIABLES: Record<string, string[]> = {
   '固定价比较检查': ['固定清单价', '项目协议价'],
   '项目外链比较检查': ['项目外链价', '项目协议价'],
@@ -51,12 +50,12 @@ const INITIAL_RULES: Rule[] = [
   },
   { 
     id: '5', 
-    name: '利润率预警', 
+    name: '毛利率预警', 
     type: '通用检查', 
     createdAt: '2025-11-20', 
-    formula: '[项目协议价] / [固定清单价]',
-    thresholdUp: '15%',
-    thresholdDown: '5%',
+    formula: '( [项目协议价] - [调拨价] ) / [项目协议价]',
+    thresholdUp: '10%',
+    thresholdDown: '0%',
     isSystem: false
   },
 ];
@@ -66,12 +65,10 @@ const RuleLibrary: React.FC = () => {
   const [nameSearch, setNameSearch] = useState('');
   const [typeSearch, setTypeSearch] = useState('');
   
-  // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<Rule | null>(null);
   const [formData, setFormData] = useState<Partial<Rule>>({});
 
-  // Filtering Logic
   const filteredRules = useMemo(() => {
     return rules.filter(rule => {
       const matchesName = rule.name.toLowerCase().includes(nameSearch.toLowerCase());
@@ -85,17 +82,13 @@ const RuleLibrary: React.FC = () => {
     return COMPARISON_OPERATORS.some(op => formula.includes(op));
   }, [formData.formula]);
 
-  // 根据当前选择的类型获取可用变量
   const availableVariables = useMemo(() => {
     if (!formData.type) return [];
     return TYPE_TO_VARIABLES[formData.type] || PRICE_VARIABLES;
   }, [formData.type]);
 
   const handleDelete = (rule: Rule) => {
-    if (rule.isSystem) {
-      alert('系统内置核心规则不可删除');
-      return;
-    }
+    if (rule.isSystem) return;
     if (window.confirm('确定要删除这条规则吗？')) {
       setRules(prev => prev.filter(r => r.id !== rule.id));
     }
@@ -103,15 +96,12 @@ const RuleLibrary: React.FC = () => {
 
   const handleOpenModal = (rule?: Rule) => {
     if (rule) {
-      if (rule.isSystem) {
-        // System rules cannot be opened for editing
-        return;
-      }
+      if (rule.isSystem) return;
       setEditingRule(rule);
       setFormData(rule);
     } else {
       setEditingRule(null);
-      setFormData({ name: '', type: '', thresholdUp: '', thresholdDown: '', formula: '' });
+      setFormData({ name: '', type: '通用检查', thresholdUp: '', thresholdDown: '', formula: '' });
     }
     setIsModalOpen(true);
   };
@@ -123,7 +113,6 @@ const RuleLibrary: React.FC = () => {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    
     const finalData = {
       ...formData,
       thresholdUp: hasComparison ? undefined : formData.thresholdUp,
@@ -150,7 +139,7 @@ const RuleLibrary: React.FC = () => {
 
   const addToFormula = (token: string) => {
     const currentFormula = formData.formula || '';
-    const spacing = (currentFormula.length > 0 && !currentFormula.endsWith(' ') && !OPERATORS.includes(token)) ? ' ' : '';
+    const spacing = (currentFormula.length > 0 && !currentFormula.endsWith(' ')) ? ' ' : '';
     setFormData({ ...formData, formula: currentFormula + spacing + token });
   };
 
@@ -167,7 +156,6 @@ const RuleLibrary: React.FC = () => {
         </button>
       </div>
 
-      {/* Search Panel */}
       <div className="bg-white p-5 rounded-lg border border-gray-100 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
           <div className="space-y-1.5">
@@ -211,7 +199,6 @@ const RuleLibrary: React.FC = () => {
         </div>
       </div>
 
-      {/* Table Section */}
       <div className="bg-white rounded-lg border border-gray-100 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
@@ -226,163 +213,113 @@ const RuleLibrary: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredRules.length > 0 ? (
-                filteredRules.map((rule) => {
-                  const ruleHasComparison = COMPARISON_OPERATORS.some(op => rule.formula?.includes(op));
-                  return (
-                    <tr key={rule.id} className={`transition-colors group ${rule.isSystem ? 'bg-gray-50/30' : 'hover:bg-blue-50/30'}`}>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <span className="font-medium text-gray-900">{rule.name}</span>
-                          {rule.isSystem && (
-                            <span className="bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">系统</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
-                          {rule.type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center space-x-2">
-                          <Calculator size={14} className={`${rule.isSystem ? 'text-gray-400' : 'text-blue-500'}`} />
-                          <code className={`text-[12px] px-2 py-1 rounded font-mono border ${rule.isSystem ? 'bg-gray-100 text-gray-500 border-gray-200' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
-                            {rule.formula || '--'}
-                          </code>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-center space-x-3">
-                          {ruleHasComparison ? (
-                            <span className="text-[11px] text-gray-400 italic bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
-                              逻辑判定模式
-                            </span>
-                          ) : (
-                            <>
-                              <div className="flex items-center text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-xs border border-emerald-100">
-                                <ArrowUp size={10} className="mr-1" />
-                                {rule.thresholdUp || '0%'}
-                              </div>
-                              <div className="flex items-center text-rose-600 bg-rose-50 px-2 py-0.5 rounded text-xs border border-rose-100">
-                                <ArrowDown size={10} className="mr-1" />
-                                {rule.thresholdDown || '0%'}
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-gray-500 text-xs">
-                        {rule.createdAt}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {rule.isSystem ? (
-                            <div className="p-1.5 text-gray-400 flex items-center" title="系统核心规则，不可修改">
-                              <Lock size={16} className="opacity-60" />
-                              <span className="text-[10px] ml-1 font-bold">锁定</span>
+              {filteredRules.map((rule) => {
+                const ruleHasComparison = COMPARISON_OPERATORS.some(op => rule.formula?.includes(op));
+                return (
+                  <tr key={rule.id} className={`transition-colors group ${rule.isSystem ? 'bg-gray-50/30' : 'hover:bg-blue-50/30'}`}>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-medium text-gray-900">{rule.name}</span>
+                        {rule.isSystem && (
+                          <span className="bg-gray-200 text-gray-600 text-[10px] px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">系统</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700">
+                        {rule.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        <Calculator size={14} className={`${rule.isSystem ? 'text-gray-400' : 'text-blue-500'}`} />
+                        <code className={`text-[12px] px-2 py-1 rounded font-mono border ${rule.isSystem ? 'bg-gray-100 text-gray-500 border-gray-200' : 'bg-blue-50 text-blue-700 border-blue-100'}`}>
+                          {rule.formula || '--'}
+                        </code>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex items-center justify-center space-x-3">
+                        {ruleHasComparison ? (
+                          <span className="text-[11px] text-gray-400 italic bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
+                            逻辑判定模式
+                          </span>
+                        ) : (
+                          <>
+                            <div className="flex items-center text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded text-xs border border-emerald-100">
+                              <ArrowUp size={10} className="mr-1" />
+                              {rule.thresholdUp || '0%'}
                             </div>
-                          ) : (
-                            <>
-                              <button 
-                                onClick={() => handleOpenModal(rule)}
-                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"
-                                title="编辑"
-                              >
-                                <Edit3 size={16} />
-                              </button>
-                              <button 
-                                onClick={() => handleDelete(rule)}
-                                className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-md transition-colors"
-                                title="删除"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-6 py-20 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-3 text-gray-400">
-                      <Search size={48} strokeWidth={1} />
-                      <p className="text-base">没有找到匹配的规则</p>
-                      <button 
-                        onClick={handleReset}
-                        className="text-blue-600 hover:underline text-sm font-medium"
-                      >
-                        清除所有过滤器
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )}
+                            <div className="flex items-center text-rose-600 bg-rose-50 px-2 py-0.5 rounded text-xs border border-rose-100">
+                              <ArrowDown size={10} className="mr-1" />
+                              {rule.thresholdDown || '0%'}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-gray-500 text-xs">
+                      {rule.createdAt}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {rule.isSystem ? (
+                          <div className="p-1.5 text-gray-400 flex items-center">
+                            <Lock size={16} className="opacity-60" />
+                          </div>
+                        ) : (
+                          <>
+                            <button onClick={() => handleOpenModal(rule)} className="p-1.5 text-blue-600 hover:bg-blue-100 rounded-md transition-colors"><Edit3 size={16} /></button>
+                            <button onClick={() => handleDelete(rule)} className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-md transition-colors"><Trash2 size={16} /></button>
+                          </>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-        
-        {/* Pagination Mock */}
-        <div className="bg-gray-50 px-6 py-3 border-t border-gray-100 flex items-center justify-between text-xs font-medium text-gray-500">
-          <div>共 {filteredRules.length} 条数据</div>
-          <div className="flex items-center space-x-2">
-            <button className="p-1 hover:bg-gray-200 rounded disabled:opacity-30" disabled><ChevronLeft size={16} /></button>
-            <button className="w-6 h-6 flex items-center justify-center bg-blue-600 text-white rounded shadow-sm">1</button>
-            <button className="p-1 hover:bg-gray-200 rounded disabled:opacity-30" disabled><ChevronRight size={16} /></button>
-          </div>
-        </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-100 p-4 rounded-lg flex items-start space-x-3">
-        <AlertCircle size={18} className="text-blue-600 shrink-0 mt-0.5" />
-        <div className="text-xs text-blue-800 leading-relaxed">
-          <p className="font-bold mb-1">规则配置说明：</p>
-          <ul className="list-disc list-inside space-y-1">
-            <li><strong>系统内置规则</strong>：标有“系统”字样的规则（固定价、项目外链等）为平台核心逻辑，<strong>不支持任何修改或删除</strong>操作。</li>
-            <li><strong>相关性限制</strong>：公式可用变量将根据您选择的“规则类型”自动过滤，以确保逻辑准确性。</li>
-            <li><strong>直接判定模式</strong>：计算公式中使用 <code className="bg-blue-100 px-1 rounded font-bold">{">, <, >=, <="}</code> 时，将不再支持浮动阈值设置。</li>
-          </ul>
-        </div>
-      </div>
-
-      {/* Modal for Create/Edit */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white w-full max-w-xl rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-              <h3 className="text-base font-bold text-gray-800">
-                {editingRule ? '编辑规则详情' : '创建新监管规则'}
-              </h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-200 transition-colors">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-gray-900/40 backdrop-blur-[2px] p-4">
+          <div className="bg-white w-full max-w-[640px] rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-[#fafafa]">
+              <h3 className="text-[15px] font-bold text-[#333]">编辑规则详情</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
                 <X size={20} />
               </button>
             </div>
             
-            <form onSubmit={handleSave} className="p-6 space-y-6">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 uppercase">规则名称 <span className="text-rose-500">*</span></label>
+            <form onSubmit={handleSave} className="p-6 space-y-5">
+              {/* Name and Type */}
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[13px] font-bold text-[#333]">
+                    规则名称 <span className="text-rose-500 font-normal">*</span>
+                  </label>
                   <input 
                     required
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    placeholder="例如：物料差价监管"
+                    className="w-full border border-[#d9d9d9] rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 transition-all placeholder:text-gray-300"
+                    placeholder="请输入"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 uppercase">规则类型 <span className="text-rose-500">*</span></label>
+                <div className="space-y-2">
+                  <label className="text-[13px] font-bold text-[#333]">
+                    规则类型 <span className="text-rose-500 font-normal">*</span>
+                  </label>
                   <select 
                     required
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition-all"
+                    className="w-full border border-[#d9d9d9] rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white transition-all"
                   >
-                    <option value="">请选择类型</option>
                     {Object.keys(TYPE_TO_VARIABLES).map(type => (
                       <option key={type} value={type}>{type}</option>
                     ))}
@@ -390,55 +327,51 @@ const RuleLibrary: React.FC = () => {
                 </div>
               </div>
               
-              <div className="space-y-3 bg-gray-50 p-4 rounded-lg border border-gray-100">
-                <label className="text-xs font-bold text-gray-700 uppercase flex items-center justify-between">
-                  <span className="flex items-center">
-                    <Calculator size={14} className="mr-1.5 text-blue-500" />
-                    公式配置 (基准价格)
-                  </span>
-                  {!formData.type && (
-                    <span className="text-[10px] text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 flex items-center animate-pulse">
-                      <AlertCircle size={10} className="mr-1" /> 请先选择规则类型
-                    </span>
-                  )}
-                </label>
+              {/* Formula Section */}
+              <div className="bg-[#f8fbff] p-5 rounded-xl border border-[#e6f1ff] space-y-4">
+                <div className="flex items-center space-x-2 text-[13px] font-bold text-[#333]">
+                  <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center text-blue-600">
+                    <Calculator size={14} />
+                  </div>
+                  <span>公式配置 (基准价格)</span>
+                </div>
+                
                 <textarea 
                   required
                   rows={2}
                   value={formData.formula}
                   onChange={(e) => setFormData({ ...formData, formula: e.target.value })}
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white resize-none"
-                  placeholder="例: [项目协议价] * 1.1"
+                  className="w-full border border-[#d9d9d9] rounded-lg px-4 py-3 text-sm font-mono outline-none focus:border-blue-500 bg-white resize-none shadow-sm"
+                  placeholder="请输入公式"
                 />
                 
+                {/* Available Variables */}
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">可用价格变量</p>
-                  <div className="flex flex-wrap gap-2 min-h-[32px]">
-                    {availableVariables.length > 0 ? (
-                      availableVariables.map(v => (
-                        <button
-                          key={v}
-                          type="button"
-                          onClick={() => addToFormula(`[${v}]`)}
-                          className="px-2.5 py-1 bg-white hover:bg-blue-600 hover:text-white text-blue-600 rounded-md border border-blue-200 text-[11px] font-medium transition-all animate-in fade-in slide-in-from-left-1"
-                        >
-                          {v}
-                        </button>
-                      ))
-                    ) : (
-                      <span className="text-[11px] text-gray-400 italic py-1">选择类型后显示对应变量</span>
-                    )}
+                  <p className="text-[12px] font-bold text-[#999]">可用价格变量</p>
+                  <div className="flex flex-wrap gap-2">
+                    {availableVariables.map(v => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => addToFormula(`[${v}]`)}
+                        className="px-3 py-1 bg-white hover:bg-blue-600 hover:text-white text-blue-500 rounded-md border border-blue-200 text-[12px] transition-all"
+                      >
+                        {v}
+                      </button>
+                    ))}
                   </div>
                 </div>
+
+                {/* Operators */}
                 <div className="space-y-2">
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">逻辑运算符</p>
+                  <p className="text-[12px] font-bold text-[#999]">逻辑运算符</p>
                   <div className="flex flex-wrap gap-2">
                     {OPERATORS.map(op => (
                       <button
                         key={op}
                         type="button"
                         onClick={() => addToFormula(op)}
-                        className="min-w-[2.5rem] h-8 bg-white hover:bg-gray-100 text-gray-600 rounded-md border border-gray-200 text-xs font-bold flex items-center justify-center transition-all"
+                        className="w-10 h-8 bg-white hover:bg-gray-50 text-[#666] rounded-md border border-[#d9d9d9] text-[13px] font-medium transition-all flex items-center justify-center"
                       >
                         {op}
                       </button>
@@ -447,23 +380,18 @@ const RuleLibrary: React.FC = () => {
                 </div>
               </div>
 
-              <div className={`p-4 rounded-xl border transition-all duration-300 ${hasComparison ? 'bg-gray-100/50 border-gray-200' : 'bg-emerald-50/30 border-emerald-100'}`}>
+              {/* Threshold Section */}
+              <div className={`p-5 rounded-xl border transition-all duration-300 ${hasComparison ? 'bg-gray-50 border-gray-200' : 'bg-[#f6ffed]/40 border-[#b7eb8f]'}`}>
                 <div className="flex items-center justify-between mb-4">
-                   <label className={`text-xs font-bold uppercase ${hasComparison ? 'text-gray-400' : 'text-gray-700'}`}>
+                   <label className="text-[13px] font-bold text-[#333]">
                      浮动阈值设置
                    </label>
-                   {hasComparison && (
-                     <div className="flex items-center text-orange-600 space-x-1.5 px-2 py-1 bg-orange-100 rounded text-[10px] font-bold">
-                       <AlertCircle size={12} />
-                       <span>逻辑判定模式已启用，无法设置阈值</span>
-                     </div>
-                   )}
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className={`text-[11px] font-medium flex items-center ${hasComparison ? 'text-gray-400' : 'text-emerald-700'}`}>
-                      <ArrowUp size={12} className="mr-1" />
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-2">
+                    <label className={`text-[12px] font-bold flex items-center ${hasComparison ? 'text-gray-400' : 'text-[#52c41a]'}`}>
+                      <ArrowUp size={14} className="mr-1" />
                       上浮阈值 (%)
                     </label>
                     <input 
@@ -471,13 +399,13 @@ const RuleLibrary: React.FC = () => {
                       type="text"
                       value={hasComparison ? '' : formData.thresholdUp}
                       onChange={(e) => setFormData({ ...formData, thresholdUp: e.target.value })}
-                      className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition-all ${hasComparison ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border-emerald-200 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500'}`}
+                      className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition-all ${hasComparison ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border-[#b7eb8f] focus:border-[#52c41a] focus:ring-4 focus:ring-[#52c41a]/10'}`}
                       placeholder="如: 10%"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className={`text-[11px] font-medium flex items-center ${hasComparison ? 'text-gray-400' : 'text-rose-700'}`}>
-                      <ArrowDown size={12} className="mr-1" />
+                  <div className="space-y-2">
+                    <label className={`text-[12px] font-bold flex items-center ${hasComparison ? 'text-gray-400' : 'text-[#ff4d4f]'}`}>
+                      <ArrowDown size={14} className="mr-1 rotate-0" />
                       下浮阈值 (%)
                     </label>
                     <input 
@@ -485,24 +413,25 @@ const RuleLibrary: React.FC = () => {
                       type="text"
                       value={hasComparison ? '' : formData.thresholdDown}
                       onChange={(e) => setFormData({ ...formData, thresholdDown: e.target.value })}
-                      className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition-all ${hasComparison ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border-rose-200 focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500'}`}
-                      placeholder="如: 5%"
+                      className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition-all ${hasComparison ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border-[#ffa39e] focus:border-[#ff4d4f] focus:ring-4 focus:ring-[#ff4d4f]/10'}`}
+                      placeholder="如: 0%"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-3 pt-2">
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4">
                 <button 
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-5 py-2 border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors"
+                  className="px-6 py-2 border border-[#d9d9d9] rounded-lg text-sm font-medium text-[#666] hover:bg-gray-50 transition-colors"
                 >
                   取消
                 </button>
                 <button 
                   type="submit"
-                  className="px-8 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-md hover:shadow-lg transition-all"
+                  className="px-8 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all active:scale-[0.98]"
                 >
                   确认保存
                 </button>
