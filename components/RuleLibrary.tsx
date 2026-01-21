@@ -12,7 +12,7 @@ const TYPE_TO_VARIABLES: Record<string, string[]> = {
   '项目外链比较检查': ['项目外链价', '项目协议价'],
   '外部链接比较检查': ['平台外链价', '项目协议价'],
   '咸亨官网价比较检查': ['咸亨官网价', '项目协议价'],
-  '通用检查': PRICE_VARIABLES,
+  '调拨价比较检查': ['调拨价', '项目协议价'],
 };
 
 const INITIAL_RULES: Rule[] = [
@@ -22,7 +22,8 @@ const INITIAL_RULES: Rule[] = [
     type: '固定价比较检查', 
     createdAt: '2026-01-19', 
     formula: '[项目协议价] > [固定清单价]',
-    isSystem: true
+    isSystem: true,
+    isThresholdEnabled: false
   },
   { 
     id: '2', 
@@ -30,7 +31,8 @@ const INITIAL_RULES: Rule[] = [
     type: '项目外链比较检查', 
     createdAt: '2025-12-05', 
     formula: '[项目外链价] < [项目协议价]',
-    isSystem: true
+    isSystem: true,
+    isThresholdEnabled: false
   },
   { 
     id: '3', 
@@ -38,7 +40,8 @@ const INITIAL_RULES: Rule[] = [
     type: '外部链接比较检查', 
     createdAt: '2025-12-05', 
     formula: '[平台外链价] < [项目协议价]',
-    isSystem: true
+    isSystem: true,
+    isThresholdEnabled: false
   },
   { 
     id: '4', 
@@ -46,17 +49,19 @@ const INITIAL_RULES: Rule[] = [
     type: '咸亨官网价比较检查', 
     createdAt: '2025-12-05', 
     formula: '[咸亨官网价] < [项目协议价]',
-    isSystem: true
+    isSystem: true,
+    isThresholdEnabled: false
   },
   { 
     id: '5', 
-    name: '毛利率预警', 
-    type: '通用检查', 
+    name: '调拨价格检查', 
+    type: '调拨价比较检查', 
     createdAt: '2025-11-20', 
-    formula: '( [项目协议价] - [调拨价] ) / [项目协议价]',
+    formula: '[调拨价] < [项目协议价]',
     thresholdUp: '10%',
     thresholdDown: '0%',
-    isSystem: false
+    isSystem: false,
+    isThresholdEnabled: true
   },
 ];
 
@@ -84,7 +89,7 @@ const RuleLibrary: React.FC = () => {
 
   const availableVariables = useMemo(() => {
     if (!formData.type) return [];
-    return TYPE_TO_VARIABLES[formData.type] || PRICE_VARIABLES;
+    return TYPE_TO_VARIABLES[formData.type] || [];
   }, [formData.type]);
 
   const handleDelete = (rule: Rule) => {
@@ -101,7 +106,14 @@ const RuleLibrary: React.FC = () => {
       setFormData(rule);
     } else {
       setEditingRule(null);
-      setFormData({ name: '', type: '通用检查', thresholdUp: '', thresholdDown: '', formula: '' });
+      setFormData({ 
+        name: '', 
+        type: '固定价比较检查', 
+        thresholdUp: '', 
+        thresholdDown: '', 
+        formula: '',
+        isThresholdEnabled: false 
+      });
     }
     setIsModalOpen(true);
   };
@@ -115,8 +127,8 @@ const RuleLibrary: React.FC = () => {
     e.preventDefault();
     const finalData = {
       ...formData,
-      thresholdUp: hasComparison ? undefined : formData.thresholdUp,
-      thresholdDown: hasComparison ? undefined : formData.thresholdDown
+      thresholdUp: (hasComparison || !formData.isThresholdEnabled) ? undefined : formData.thresholdUp,
+      thresholdDown: (hasComparison || !formData.isThresholdEnabled) ? undefined : formData.thresholdDown
     };
 
     if (editingRule) {
@@ -125,10 +137,11 @@ const RuleLibrary: React.FC = () => {
       const newRule: Rule = {
         id: Math.random().toString(36).substr(2, 9),
         name: finalData.name || '未命名规则',
-        type: finalData.type || '通用检查',
+        type: finalData.type || '固定价比较检查',
         createdAt: new Date().toISOString().split('T')[0],
         thresholdUp: finalData.thresholdUp,
         thresholdDown: finalData.thresholdDown,
+        isThresholdEnabled: !!finalData.isThresholdEnabled,
         formula: finalData.formula || '',
         isSystem: false,
       };
@@ -215,6 +228,8 @@ const RuleLibrary: React.FC = () => {
             <tbody className="divide-y divide-gray-50">
               {filteredRules.map((rule) => {
                 const ruleHasComparison = COMPARISON_OPERATORS.some(op => rule.formula?.includes(op));
+                const thresholdDisplay = rule.isThresholdEnabled && !ruleHasComparison;
+                
                 return (
                   <tr key={rule.id} className={`transition-colors group ${rule.isSystem ? 'bg-gray-50/30' : 'hover:bg-blue-50/30'}`}>
                     <td className="px-6 py-4">
@@ -243,6 +258,10 @@ const RuleLibrary: React.FC = () => {
                         {ruleHasComparison ? (
                           <span className="text-[11px] text-gray-400 italic bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
                             逻辑判定模式
+                          </span>
+                        ) : !rule.isThresholdEnabled ? (
+                          <span className="text-[11px] text-gray-400 italic bg-gray-50 px-2 py-0.5 rounded border border-gray-100">
+                            未开启
                           </span>
                         ) : (
                           <>
@@ -288,7 +307,7 @@ const RuleLibrary: React.FC = () => {
           <div className="bg-white w-full max-w-[640px] rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             {/* Header */}
             <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-[#fafafa]">
-              <h3 className="text-[15px] font-bold text-[#333]">编辑规则详情</h3>
+              <h3 className="text-[15px] font-bold text-[#333]">{editingRule ? '编辑规则详情' : '新增规则详情'}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-600 transition-colors p-1">
                 <X size={20} />
               </button>
@@ -317,7 +336,7 @@ const RuleLibrary: React.FC = () => {
                   <select 
                     required
                     value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value, formula: '' })}
                     className="w-full border border-[#d9d9d9] rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white transition-all"
                   >
                     {Object.keys(TYPE_TO_VARIABLES).map(type => (
@@ -345,11 +364,10 @@ const RuleLibrary: React.FC = () => {
                   placeholder="请输入公式"
                 />
                 
-                {/* Available Variables */}
                 <div className="space-y-2">
                   <p className="text-[12px] font-bold text-[#999]">可用价格变量</p>
                   <div className="flex flex-wrap gap-2">
-                    {availableVariables.map(v => (
+                    {availableVariables.length > 0 ? availableVariables.map(v => (
                       <button
                         key={v}
                         type="button"
@@ -358,11 +376,12 @@ const RuleLibrary: React.FC = () => {
                       >
                         {v}
                       </button>
-                    ))}
+                    )) : (
+                      <span className="text-[12px] text-gray-400 italic">请先选择规则类型</span>
+                    )}
                   </div>
                 </div>
 
-                {/* Operators */}
                 <div className="space-y-2">
                   <p className="text-[12px] font-bold text-[#999]">逻辑运算符</p>
                   <div className="flex flex-wrap gap-2">
@@ -380,44 +399,68 @@ const RuleLibrary: React.FC = () => {
                 </div>
               </div>
 
-              {/* Threshold Section */}
-              <div className={`p-5 rounded-xl border transition-all duration-300 ${hasComparison ? 'bg-gray-50 border-gray-200' : 'bg-[#f6ffed]/40 border-[#b7eb8f]'}`}>
+              {/* Threshold Section with Switch */}
+              <div className={`p-5 rounded-xl border transition-all duration-300 ${(!formData.isThresholdEnabled || hasComparison) ? 'bg-gray-50 border-gray-200' : 'bg-[#f6ffed]/40 border-[#b7eb8f]'}`}>
                 <div className="flex items-center justify-between mb-4">
                    <label className="text-[13px] font-bold text-[#333]">
                      浮动阈值设置
                    </label>
+                   
+                   <div className="flex items-center space-x-2">
+                     <span className={`text-[12px] font-medium transition-colors ${formData.isThresholdEnabled ? 'text-blue-600' : 'text-gray-400'}`}>
+                       {formData.isThresholdEnabled ? '开启' : '关闭'}
+                     </span>
+                     {/* Toggle Switch */}
+                     <button
+                       type="button"
+                       disabled={hasComparison}
+                       onClick={() => setFormData({ ...formData, isThresholdEnabled: !formData.isThresholdEnabled })}
+                       className={`relative inline-flex h-5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${hasComparison ? 'bg-gray-200 cursor-not-allowed' : formData.isThresholdEnabled ? 'bg-blue-600' : 'bg-gray-300'}`}
+                     >
+                       <span
+                         className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${formData.isThresholdEnabled ? 'translate-x-5' : 'translate-x-0'}`}
+                       />
+                     </button>
+                   </div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-2">
-                    <label className={`text-[12px] font-bold flex items-center ${hasComparison ? 'text-gray-400' : 'text-[#52c41a]'}`}>
+                    <label className={`text-[12px] font-bold flex items-center ${(hasComparison || !formData.isThresholdEnabled) ? 'text-gray-400' : 'text-[#52c41a]'}`}>
                       <ArrowUp size={14} className="mr-1" />
                       上浮阈值 (%)
                     </label>
                     <input 
-                      disabled={hasComparison}
+                      disabled={hasComparison || !formData.isThresholdEnabled}
                       type="text"
-                      value={hasComparison ? '' : formData.thresholdUp}
+                      value={(hasComparison || !formData.isThresholdEnabled) ? '' : (formData.thresholdUp || '')}
                       onChange={(e) => setFormData({ ...formData, thresholdUp: e.target.value })}
-                      className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition-all ${hasComparison ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border-[#b7eb8f] focus:border-[#52c41a] focus:ring-4 focus:ring-[#52c41a]/10'}`}
+                      className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition-all ${(hasComparison || !formData.isThresholdEnabled) ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border-[#b7eb8f] focus:border-[#52c41a] focus:ring-4 focus:ring-[#52c41a]/10'}`}
                       placeholder="如: 10%"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className={`text-[12px] font-bold flex items-center ${hasComparison ? 'text-gray-400' : 'text-[#ff4d4f]'}`}>
+                    <label className={`text-[12px] font-bold flex items-center ${(hasComparison || !formData.isThresholdEnabled) ? 'text-gray-400' : 'text-[#ff4d4f]'}`}>
                       <ArrowDown size={14} className="mr-1 rotate-0" />
                       下浮阈值 (%)
                     </label>
                     <input 
-                      disabled={hasComparison}
+                      disabled={hasComparison || !formData.isThresholdEnabled}
                       type="text"
-                      value={hasComparison ? '' : formData.thresholdDown}
+                      value={(hasComparison || !formData.isThresholdEnabled) ? '' : (formData.thresholdDown || '')}
                       onChange={(e) => setFormData({ ...formData, thresholdDown: e.target.value })}
-                      className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition-all ${hasComparison ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border-[#ffa39e] focus:border-[#ff4d4f] focus:ring-4 focus:ring-[#ff4d4f]/10'}`}
+                      className={`w-full border rounded-lg px-3 py-2 text-sm outline-none transition-all ${(hasComparison || !formData.isThresholdEnabled) ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'bg-white border-[#ffa39e] focus:border-[#ff4d4f] focus:ring-4 focus:ring-[#ff4d4f]/10'}`}
                       placeholder="如: 0%"
                     />
                   </div>
                 </div>
+                
+                {hasComparison && (
+                  <p className="mt-3 text-[11px] text-gray-400 flex items-center">
+                    <AlertCircle size={12} className="mr-1" />
+                    当前为逻辑判定模式，无法设置浮动阈值
+                  </p>
+                )}
               </div>
 
               {/* Action Buttons */}

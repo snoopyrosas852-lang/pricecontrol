@@ -6,8 +6,9 @@ export interface Rule {
   createdAt: string;
   thresholdUp?: string;
   thresholdDown?: string;
-  formula?: string; // Replaced basePrice with formula
-  isSystem?: boolean; // Identifies rules that cannot be edited or deleted
+  isThresholdEnabled?: boolean; // New field for toggle
+  formula?: string;
+  isSystem?: boolean;
 }
 
 export interface Customer {
